@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <znc/IRCNetwork.h>
 #include <znc/Chan.h>
+#include <znc/IRCNetwork.h>
 
 using std::map;
 using std::set;
@@ -48,8 +48,8 @@ class CAutoModeUser {
     CAutoModeUser(const CString& sLine) { FromString(sLine); }
 
     CAutoModeUser(const CString& sUsername, const CString& sMode,
-	              const CString& sUserKey, const CString& sHostmasks,
-				  const CString& sChannels)
+                  const CString& sUserKey, const CString& sHostmasks,
+                  const CString& sChannels)
         : m_sUsername(sUsername), m_sUserKey(sUserKey), m_sMode(sMode) {
         AddHostmasks(sHostmasks);
         AddChans(sChannels);
@@ -134,11 +134,8 @@ class CAutoModeUser {
     }
 
     CString ToString() const {
-        return m_sUsername    + "\t" +
-               GetHostmasks() + "\t" +
-               m_sMode        + "\t" +
-			   m_sUserKey     + "\t" +
-               GetChannels();
+        return m_sUsername + "\t" + GetHostmasks() + "\t" + m_sMode + "\t" +
+               m_sUserKey + "\t" + GetChannels();
     }
 
     bool FromString(const CString& sLine) {
@@ -178,10 +175,11 @@ class CAutoModeMod : public CModule {
         AddCommand("DelMasks", t_d("<user> <mask>,[mask] ..."),
                    t_d("Removes masks from a user"),
                    [=](const CString& sLine) { OnDelMasksCommand(sLine); });
-        AddCommand("AddUser",
-                   t_d("<user> <hostmask>[,<hostmasks>...] <mode> <key> [channels]"),
-                   t_d("Adds a user"),
-                   [=](const CString& sLine) { OnAddUserCommand(sLine); });
+        AddCommand(
+            "AddUser",
+            t_d("<user> <hostmask>[,<hostmasks>...] <mode> <key> [channels]"),
+            t_d("Adds a user"),
+            [=](const CString& sLine) { OnAddUserCommand(sLine); });
         AddCommand("DelUser", t_d("<user>"), t_d("Removes a user"),
                    [=](const CString& sLine) { OnDelUserCommand(sLine); });
         AddCommand("Dump", t_d(""),
@@ -219,12 +217,11 @@ class CAutoModeMod : public CModule {
         for (const auto& it : m_msUsers) {
             VCString vsHostmasks;
             it.second->GetHostmasks().Split(",", vsHostmasks);
-                PutModule("/msg " + GetModNick() + " ADDUSER "
-                    + it.second->GetUsername() + " "
-                    + it.second->GetHostmasks() + " "
-                    + it.second->GetMode() + " " 
-                    + it.second->GetUserKey() + " "
-                    + it.second->GetChannels());
+            PutModule("/msg " + GetModNick() + " ADDUSER " +
+                      it.second->GetUsername() + " " +
+                      it.second->GetHostmasks() + " " + it.second->GetMode() +
+                      " " + it.second->GetUserKey() + " " +
+                      it.second->GetChannels());
         }
         PutModule("---------------");
     }
@@ -315,7 +312,8 @@ class CAutoModeMod : public CModule {
 
         if (sHost.empty()) {
             PutModule(
-                t_s("Usage: AddUser <user> <hostmask>[,<hostmasks>...] <mode> <key> "
+                t_s("Usage: AddUser <user> <hostmask>[,<hostmasks>...] <mode> "
+                    "<key> "
                     "[channels]"));
         } else if (sMode != "q" && sMode != "a" && sMode != "o" &&
                    sMode != "h" && sMode != "v") {
@@ -352,7 +350,7 @@ class CAutoModeMod : public CModule {
 
         Table.AddColumn(t_s("User"));
         Table.AddColumn(t_s("Hostmasks"));
-		Table.AddColumn(t_s("Mode"));
+        Table.AddColumn(t_s("Mode"));
         Table.AddColumn(t_s("Key"));
         Table.AddColumn(t_s("Channels"));
 
@@ -363,7 +361,7 @@ class CAutoModeMod : public CModule {
                 Table.AddRow();
                 if (a == 0) {
                     Table.SetCell(t_s("User"), it.second->GetUsername());
-					Table.SetCell(t_s("Mode"), it.second->GetMode());
+                    Table.SetCell(t_s("Mode"), it.second->GetMode());
                     Table.SetCell(t_s("Key"), it.second->GetUserKey());
                     Table.SetCell(t_s("Channels"), it.second->GetChannels());
                 } else if (a == vsHostmasks.size() - 1) {
@@ -479,7 +477,7 @@ class CAutoModeMod : public CModule {
     }
 
     CAutoModeUser* FindUserByHost(const CString& sHostmask,
-                                const CString& sChannel = "") {
+                                  const CString& sChannel = "") {
         for (const auto& it : m_msUsers) {
             CAutoModeUser* pUser = it.second;
 
@@ -501,7 +499,8 @@ class CAutoModeMod : public CModule {
         }
 
         if (pUser->GetUserKey().Equals("__NOKEY__")) {
-            PutIRC("MODE " + Channel.GetName() + " +" + pUser->GetMode() + " " + Nick.GetNick());
+            PutIRC("MODE " + Channel.GetName() + " +" + pUser->GetMode() + " " +
+                   Nick.GetNick());
         } else {
             // then insert this nick into the queue, the timer does the rest
             CString sNick = Nick.GetNick().AsLower();
@@ -527,14 +526,16 @@ class CAutoModeMod : public CModule {
         PutModule(t_f("User {1} removed")(sUser));
     }
 
-    CAutoModeUser* AddUser(const CString& sUser, CString& sMode, const CString& sKey,
-                         const CString& sHosts, const CString& sChans) {
+    CAutoModeUser* AddUser(const CString& sUser, CString& sMode,
+                           const CString& sKey, const CString& sHosts,
+                           const CString& sChans) {
         if (m_msUsers.find(sUser) != m_msUsers.end()) {
             PutModule(t_s("That user already exists"));
             return nullptr;
         }
 
-        CAutoModeUser* pUser = new CAutoModeUser(sUser, sMode, sKey, sHosts, sChans);
+        CAutoModeUser* pUser =
+            new CAutoModeUser(sUser, sMode, sKey, sHosts, sChans);
         m_msUsers[sUser.AsLower()] = pUser;
         PutModule(t_f("User {1} added with hostmask(s) {2}")(sUser, sHosts));
         return pUser;
@@ -671,8 +672,8 @@ class CAutoModeMod : public CModule {
                 const CNick* pNick = pChan->FindNick(Nick.GetNick());
 
                 if (pNick && !pNick->HasPerm(CChan::Op)) {
-					PutIRC("MODE " + pChan->GetName() + " +" + User.GetMode() +
-					" " + Nick.GetNick());
+                    PutIRC("MODE " + pChan->GetName() + " +" + User.GetMode() +
+                           " " + Nick.GetNick());
                 }
             }
         }
@@ -690,4 +691,6 @@ void TModInfo<CAutoModeMod>(CModInfo& Info) {
     Info.SetWikiPage("automode");
 }
 
-NETWORKMODULEDEFS(CAutoModeMod, t_s("Automatically owner/admin/op/halfop/voice the good people"))
+NETWORKMODULEDEFS(
+    CAutoModeMod,
+    t_s("Automatically owner/admin/op/halfop/voice the good people"))
