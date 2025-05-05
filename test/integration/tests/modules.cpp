@@ -480,5 +480,29 @@ TEST_F(ZNCTest, SaslAuthExternal) {
         ":irc.znc.in 904 nick :SASL authentication failed");
 }
 
+TEST_F(ZNCTest, AutoMode) {
+    auto znc = Run();
+    auto ircd = ConnectIRCd();
+    auto client = LoginClient();
+    client.Write("znc loadmod automode");
+    client.Write("PRIVMSG *automode :adduser test *!*@test.com v __NOKEY__ #test");
+    client.ReadUntil("User test added with hostmask(s) *!*@test.com");
+    client.Write("PRIVMSG *automode :listusers");
+    client.ReadUntil("| test | *!*@test.com | v    | __NOKEY__ | #test    |");
+    // Verify module saved entries.
+    client.Write("znc unloadmod automode");
+    client.Write("znc loadmod automode");
+    client.Write("PRIVMSG *automode :listusers");
+    client.ReadUntil("| test | *!*@test.com | v    | __NOKEY__ | #test    |");
+    // Verify module cleared entries.
+    client.Write("PRIVMSG *automode :clear");
+    client.ReadUntil("All entries cleared.");
+    client.Write("znc unloadmod automode");
+    client.Write("znc loadmod automode");
+    client.ReadUntil("Loaded module automode");
+    client.Write("PRIVMSG *automode :listusers");
+    client.ReadUntil("There are no users defined");
+}
+
 }  // namespace
 }  // namespace znc_inttest
