@@ -23,7 +23,7 @@ using std::vector;
 
 class CAutoModeMod;
 
-#define AUTOMODE_CHALLENGE_LENGTH 32
+constexpr static int AUTOMODE_CHALLENGE_LENGTH = 32;
 
 class CAutoModeTimer : public CTimer {
   public:
@@ -55,8 +55,6 @@ class CAutoModeUser {
         AddChans(sChannels);
         SetMode(sMode);
     }
-
-    virtual ~CAutoModeUser() {}
 
     const CString& GetUsername() const { return m_sUsername; }
     const CString& GetUserKey() const { return m_sUserKey; }
@@ -140,6 +138,7 @@ class CAutoModeUser {
 
     bool FromString(const CString& sLine) {
         m_sUsername = sLine.Token(0, false, "\t");
+        // Bug from autoop module.
         // Trim because there was a bug which caused spaces in the hostname
         sLine.Token(1, false, "\t").Trim_n().Split(",", m_ssHostmasks);
         m_sMode = sLine.Token(2, false, "\t");
@@ -175,11 +174,11 @@ class CAutoModeMod : public CModule {
         AddCommand("DelMasks", t_d("<user> <mask>,[mask] ..."),
                    t_d("Removes masks from a user"),
                    [=](const CString& sLine) { OnDelMasksCommand(sLine); });
-        AddCommand(
-            "AddUser",
-            t_d("<user> <hostmask>[,<hostmasks>...] <mode> <key> [channels]"),
-            t_d("Adds a user"),
-            [=](const CString& sLine) { OnAddUserCommand(sLine); });
+        AddCommand("AddUser",
+                   t_d("<user> <hostmask>[,<hostmasks>...] <mode> "
+                       "<key>/<__NOKEY__> [channels]"),
+                   t_d("Adds a user"),
+                   [=](const CString& sLine) { OnAddUserCommand(sLine); });
         AddCommand("DelUser", t_d("<user>"), t_d("Removes a user"),
                    [=](const CString& sLine) { OnDelUserCommand(sLine); });
         AddCommand("Dump", t_d(""),
@@ -229,8 +228,8 @@ class CAutoModeMod : public CModule {
         m_msUsers.clear();
         PutModule(t_s("All entries cleared."));
         ClearNV(true);
-        SaveRegistry();
     }
+
     ~CAutoModeMod() override {
         for (const auto& it : m_msUsers) {
             delete it.second;
@@ -238,15 +237,17 @@ class CAutoModeMod : public CModule {
         m_msUsers.clear();
     }
 
-    void OnJoin(const CNick& Nick, CChan& Channel) override {
-        // If we have ops in this chan
+    void OnJoinMessage(CJoinMessage& Message) override {
+        const CNick& Nick = Message.GetNick();
+        CChan& Channel = *Message.GetChan();
         if (Channel.HasPerm(CChan::Op)) {
             CheckAutoMode(Nick, Channel);
         }
     }
 
-    void OnQuit(const CNick& Nick, const CString& sMessage,
-                const vector<CChan*>& vChans) override {
+    void OnQuitMessage(CQuitMessage& Message,
+                       const vector<CChan*>& vChans) override {
+        const CNick& Nick = Message.GetNick();
         MCString::iterator it = m_msQueue.find(Nick.GetNick().AsLower());
 
         if (it != m_msQueue.end()) {
@@ -254,9 +255,10 @@ class CAutoModeMod : public CModule {
         }
     }
 
-    void OnNick(const CNick& OldNick, const CString& sNewNick,
-                const vector<CChan*>& vChans) override {
-        // Update the queue with nick changes
+    void OnNickMessage(CNickMessage& Message,
+                       const vector<CChan*>& vChans) override {
+        const CNick& OldNick = Message.GetNick();
+        const CString sNewNick = Message.GetNewNick();
         MCString::iterator it = m_msQueue.find(OldNick.GetNick().AsLower());
 
         if (it != m_msQueue.end()) {
@@ -315,10 +317,6 @@ class CAutoModeMod : public CModule {
                 t_s("Usage: AddUser <user> <hostmask>[,<hostmasks>...] <mode> "
                     "<key> "
                     "[channels]"));
-        } else if (sMode != "q" && sMode != "a" && sMode != "o" &&
-                   sMode != "h" && sMode != "v") {
-            PutModule("<mode> must be one of the following: qaohv");
-            PutModule("q = Owner, a = Admin, o = Op, h = HalfOp, v = Voice");
         } else {
             CAutoModeUser* pUser =
                 AddUser(sUser, sMode, sKey, sHost, sLine.Token(5, true));
@@ -526,7 +524,7 @@ class CAutoModeMod : public CModule {
         PutModule(t_f("User {1} removed")(sUser));
     }
 
-    CAutoModeUser* AddUser(const CString& sUser, CString& sMode,
+    CAutoModeUser* AddUser(const CString& sUser, const CString& sMode,
                            const CString& sKey, const CString& sHosts,
                            const CString& sChans) {
         if (m_msUsers.find(sUser) != m_msUsers.end()) {
