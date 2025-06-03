@@ -488,19 +488,20 @@ TEST_F(ZNCTest, AutoMode) {
     client.Write("znc loadmod automode");
     client.Write("PRIVMSG *automode :adduser test *!*@test.com v __NOKEY__ #test");
     client.ReadUntil("User test added with hostmask(s) *!*@test.com");
-    client.Write("PRIVMSG *automode :adduser example *!*@example.com o __NOKEY__ #test");
+    client.Write("PRIVMSG *automode :adduser example *!*@example.com ov __NOKEY__ #test");
     client.Write("PRIVMSG *automode :listusers");
     client.ReadUntil("| test    | *!*@test.com    | v    | __NOKEY__ | #test    |");
-    // Test module setting +v and +o.
     ircd.Write(":server 001 nick :Hello");
     ircd.Write(":nick JOIN :#test");
     ircd.Write(":server 353 nick #test :nick");
     ircd.Write(":server 366 nick #test :End of /NAMES list");
     ircd.Write(":server MODE #test +o nick");
+    // Single mode test.
     ircd.Write(":test!test@test.com JOIN #test");
     ircd.ReadUntil("MODE #test +v test");
+    // Multiple mode test.
     ircd.Write(":example!example@example.com JOIN #test");
-    ircd.ReadUntil("MODE #test +o example");
+    ircd.ReadUntil("MODE #test +ov example example");
     // Verify module saved entries.
     client.Write("znc unloadmod automode");
     client.Write("znc loadmod automode");
