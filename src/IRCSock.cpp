@@ -31,7 +31,7 @@ using std::map;
     NETWORKMODULECALL(macFUNC, m_pNetwork->GetUser(), m_pNetwork, nullptr, \
                       macEXITER)
 // These are used in OnGeneralCTCP()
-const time_t CIRCSock::m_uCTCPFloodTime = 5;
+const unsigned long long CIRCSock::m_uCTCPFloodTime = 5000;
 const unsigned int CIRCSock::m_uCTCPFloodCount = 5;
 
 // It will be bad if user sets it to 0.00000000000001
@@ -89,7 +89,8 @@ CIRCSock::CIRCSock(CIRCNetwork* pNetwork)
       m_iSendsAllowed(pNetwork->GetFloodBurst()),
       m_uFloodBurst(pNetwork->GetFloodBurst()),
       m_fFloodRate(pNetwork->GetFloodRate()),
-      m_bFloodProtection(IsFloodProtected(pNetwork->GetFloodRate())) {
+      m_bFloodProtection(IsFloodProtected(pNetwork->GetFloodRate())),
+      m_lastFloodWarned(0) {
     EnableReadLine();
     m_Nick.SetIdent(m_pNetwork->GetIdent());
     m_Nick.SetHost(m_pNetwork->GetBindHost());
@@ -249,17 +250,42 @@ void CIRCSock::ReadLine(const CString& sData) {
 }
 
 void CIRCSock::SendNextCap() {
-    if (!m_uCapPaused) {
-        if (m_ssPendingCaps.empty()) {
-            // We already got all needed ACK/NAK replies.
-            if (!m_bAuthed) {
-                PutIRC("CAP END");
+    if (m_uCapPaused) {
+        return;
+    }
+
+    if (!m_ssPendingCaps.empty()) {
+        CString sCaps = std::move(*m_ssPendingCaps.begin());
+        m_ssPendingCaps.erase(m_ssPendingCaps.begin());
+        while (!m_ssPendingCaps.empty()) {
+            const CString& sNext = *m_ssPendingCaps.begin();
+            // Old version of cap spec allowed NAK to only contain first 100
+            // symbols of the REQ message.
+            // Alternatively, instead of parsing NAK we could remember the last
+            // REQ sent, but this is simpler, as we need the splitting logic anyway.
+            // TODO: lift this limit to something more reasonable, e.g. 400
+            if (sCaps.length() + sNext.length() > 98) {
+                break;
             }
-        } else {
-            CString sCap = *m_ssPendingCaps.begin();
+            sCaps += " " + sNext;
             m_ssPendingCaps.erase(m_ssPendingCaps.begin());
-            PutIRC("CAP REQ :" + sCap);
         }
+        PutIRC("CAP REQ :" + sCaps);
+        return;
+    }
+
+    if (!m_ssPendingCapsPhase2.empty()) {
+        // Those which NAKed in first phase, try them again, one by one,
+        // to know which of them failed.
+        CString sCap = std::move(*m_ssPendingCapsPhase2.begin());
+        m_ssPendingCapsPhase2.erase(m_ssPendingCapsPhase2.begin());
+        PutIRC("CAP REQ :" + sCap);
+        return;
+    }
+
+    // We already got all needed ACK/NAK replies.
+    if (!m_bAuthed) {
+        PutIRC("CAP END");
     }
 }
 
@@ -416,24 +442,38 @@ bool CIRCSock::OnCapabilityMessage(CMessage& Message) {
                 sCap = sToken.substr(0, eq);
                 sValue = sToken.substr(eq + 1);
             }
+            if (CZNC::Get().GetServerCapBlacklist().count(sCap)) {
+                continue;
+            }
             m_msCapLsValues[sCap] = sValue;
             if (OnServerCapAvailable(sCap, sValue) || mSupportedCaps.count(sCap)) {
                 m_ssPendingCaps.insert(sCap);
             }
         }
     } else if (sSubCmd == "ACK") {
-        sArgs.Trim();
-        IRCSOCKMODULECALL(OnServerCapResult(sArgs, true), NOTHING);
-        auto it = mSupportedCaps.find(sArgs);
-        if (it != mSupportedCaps.end()) {
-            it->second(true);
+        VCString vsCaps;
+        sArgs.Split(" ", vsCaps, false);
+        for (CString& sCap : vsCaps) {
+            IRCSOCKMODULECALL(OnServerCapResult(sCap, true), NOTHING);
+            auto it = mSupportedCaps.find(sCap);
+            if (it != mSupportedCaps.end()) {
+                it->second(true);
+            }
+            m_ssAcceptedCaps.insert(std::move(sCap));
         }
-        m_ssAcceptedCaps.insert(sArgs);
     } else if (sSubCmd == "NAK") {
         // This should work because there's no [known]
         // capability with length of name more than 100 characters.
-        sArgs.Trim();
-        RemoveCap(sArgs);
+        VCString vsCaps;
+        sArgs.Split(" ", vsCaps, false);
+        if (vsCaps.size() == 1) {
+            RemoveCap(sArgs);
+        } else {
+            // Retry them one by one
+            for (CString& sCap : vsCaps) {
+                m_ssPendingCapsPhase2.insert(std::move(sCap));
+            }
+        }
     } else if (sSubCmd == "DEL") {
         VCString vsTokens;
         sArgs.Split(" ", vsTokens, false);
@@ -504,7 +544,7 @@ bool CIRCSock::OnCTCPMessage(CCTCPMessage& Message) {
     }
 
     if (!sReply.empty()) {
-        time_t now = time(nullptr);
+        unsigned long long now = CUtils::GetMillTime();
         // If the last CTCP is older than m_uCTCPFloodTime, reset the counter
         if (m_lastCTCP + m_uCTCPFloodTime < now) m_uNumCTCP = 0;
         m_lastCTCP = now;
@@ -1344,6 +1384,17 @@ void CIRCSock::TrySend() {
             PutIRCRaw(Message.ToString());
         }
         m_vSendQueue.pop_front();
+
+        if (m_vSendQueue.size() * m_fFloodRate > 600) {
+            unsigned long long now = CUtils::GetMillTime();
+            // Warn no more often than once every 2 minutes
+            if (now > m_lastFloodWarned + 2 * 60'000) {
+                m_lastFloodWarned = now;
+                this->GetNetwork()->PutStatus(
+                    t_f("Warning: flood protection is delaying your messages "
+                        "by {1} seconds")(m_vSendQueue.size() * m_fFloodRate));
+            }
+        }
     }
 }
 

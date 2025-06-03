@@ -21,7 +21,12 @@
 #include "znctestconfig.h"
 
 using testing::HasSubstr;
+using testing::Contains;
 using testing::ContainsRegex;
+using testing::SizeIs;
+using testing::Lt;
+using testing::Gt;
+using testing::AllOf;
 
 namespace znc_inttest {
 namespace {
@@ -1102,6 +1107,84 @@ TEST_F(ZNCTest, InviteNotify) {
     ASSERT_THAT(client2.ReadRemainder().toStdString(), Not(HasSubstr("someone")));
     ircd.ReadUntil("__MSG__ :source!id@ho INVITE someone #chan");
     ASSERT_THAT(ircd.ReadRemainder().toStdString(), Not(HasSubstr("__INV__")));
+}
+
+TEST_F(ZNCTest, DisableCap) {
+    {
+        QFile conf(m_dir.path() + "/configs/znc.conf");
+        ASSERT_TRUE(conf.open(QIODevice::Append | QIODevice::Text));
+        QTextStream out(&conf);
+        out << R"(
+            DisableClientCap = sasl
+            DisableClientCap = away-notify
+            DisableServerCap = chghost
+        )";
+    }
+    auto znc = Run();
+    auto ircd = ConnectIRCd();
+
+    ircd.Write("CAP user LS :chghost");
+    ASSERT_THAT(ircd.ReadRemainder().toStdString(), Not(HasSubstr("chghost")));
+
+    auto client = ConnectClient();
+    client.Write("NICK foo");
+    client.Write("CAP LS 302");
+    ASSERT_THAT(client.ReadRemainder().toStdString(), Not(HasSubstr("sasl")));
+    client.Write("CAP REQ sasl");
+    client.ReadUntil("CAP foo NAK :sasl");
+
+    client.Write("PASS :hunter2");
+    client.Write("USER user/test x x :x");
+    client.Write("CAP END");
+    client.ReadUntil("001");
+
+    // Server-dependent
+    ircd.Write("001 nick Welcome");
+    ircd.Write("CAP nick NEW away-notify");
+    ircd.ReadUntil("CAP REQ :away-notify");
+    ircd.Write("CAP nick ACK away-notify");
+    ASSERT_THAT(client.ReadRemainder().toStdString(),
+                Not(AllOf(HasSubstr("NEW"), HasSubstr("away-notify"))));
+}
+
+TEST_F(ZNCTest, ManyCapsInReq) {
+    constexpr int prefix = std::string_view("CAP NAK :").length();
+    auto znc = Run();
+    auto ircd = ConnectIRCd();
+    ircd.Write(
+        "CAP user LS :away-notify invite-notify extended-join "
+        "userhost-in-names multi-prefix cap-notify "
+        "sasl=ANONYMOUS,EXTERNAL,PLAIN setname tls chghost account-notify "
+        "message-tags batch server-time account-tag echo-message "
+        "labeled-response");
+    QByteArray caps, caps2, caps3;
+    ircd.ReadUntilAndGet("CAP REQ :", caps);
+    caps.remove(0, prefix);
+    EXPECT_THAT(caps.toStdString(), SizeIs(AllOf(Gt(10), Lt(100))));
+    ircd.Write("CAP user NAK :" + caps);
+    ircd.ReadUntilAndGet("CAP REQ :", caps2);
+    caps2.remove(0, prefix);
+    EXPECT_THAT(caps2.toStdString(), SizeIs(AllOf(Gt(10), Lt(100))));
+    ircd.Write("CAP user ACK :" + caps2);
+    // Now it should retry one of the first batch
+    ircd.ReadUntilAndGet("CAP REQ :", caps3);
+    caps3.remove(0, prefix);
+    EXPECT_THAT(caps3.toStdString(), Not(HasSubstr(" ")));
+    EXPECT_THAT(caps.split(' '), Contains(caps3));
+}
+
+TEST_F(ZNCTest, JoinWhileRegistration) {
+    auto znc = Run();
+    auto ircd = ConnectIRCd();
+    auto client = LoginClient();
+    // First JOIN just adds channel to the list, second one updates the key and
+    // sends JOIN from CChan::JoinUser. Both should be delayed until
+    // registration ends.
+    client.Write("JOIN #foo");
+    client.Write("JOIN #foo");
+    EXPECT_THAT(ircd.ReadRemainder().toStdString(), Not(HasSubstr("JOIN")));
+    ircd.Write(":server 001 nick :Hello");
+    ircd.ReadUntil("JOIN #foo");
 }
 
 }  // namespace

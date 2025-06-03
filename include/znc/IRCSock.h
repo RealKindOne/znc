@@ -226,10 +226,11 @@ class CIRCSock : public CIRCSocket {
     unsigned int m_uCapPaused;
     SCString m_ssAcceptedCaps;
     SCString m_ssPendingCaps;
+    SCString m_ssPendingCapsPhase2;
     MCString m_msCapLsValues;
-    time_t m_lastCTCP;
+    unsigned long long m_lastCTCP;
     unsigned int m_uNumCTCP;
-    static const time_t m_uCTCPFloodTime;
+    static const unsigned long long m_uCTCPFloodTime;
     static const unsigned int m_uCTCPFloodCount;
     MCString m_mISupport;
     std::deque<CMessage> m_vSendQueue;
@@ -237,6 +238,7 @@ class CIRCSock : public CIRCSocket {
     unsigned short int m_uFloodBurst;
     double m_fFloodRate;
     bool m_bFloodProtection;
+    unsigned long long m_lastFloodWarned;
     SCString m_ssSupportedTags;
     VCString m_vsSSLError;
 
