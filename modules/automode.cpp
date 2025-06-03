@@ -88,10 +88,7 @@ class CAutoModeUser {
         return CString(" ").Join(m_ssChans.begin(), m_ssChans.end());
     }
 
-    bool SetMode(const CString& sMode) {
-        m_sMode = sMode;
-        return m_sMode.empty();
-    }
+    void SetMode(const CString& sMode) { m_sMode = sMode; }
 
     bool DelHostmasks(const CString& sHostmasks) {
         VCString vsHostmasks;
@@ -213,14 +210,13 @@ class CAutoModeMod : public CModule {
         }
         PutModule("---------------");
         PutModule("/msg " + GetModNick() + " CLEAR");
-        for (const auto& it : m_msUsers) {
+        for (const auto& [_, pUser] : m_msUsers) {
             VCString vsHostmasks;
-            it.second->GetHostmasks().Split(",", vsHostmasks);
+            pUser->GetHostmasks().Split(",", vsHostmasks);
             PutModule("/msg " + GetModNick() + " ADDUSER " +
-                      it.second->GetUsername() + " " +
-                      it.second->GetHostmasks() + " " + it.second->GetMode() +
-                      " " + it.second->GetUserKey() + " " +
-                      it.second->GetChannels());
+                      pUser->GetUsername() + " " + pUser->GetHostmasks() + " " +
+                      pUser->GetMode() + " " + pUser->GetUserKey() + " " +
+                      pUser->GetChannels());
         }
         PutModule("---------------");
     }
@@ -315,8 +311,7 @@ class CAutoModeMod : public CModule {
         if (sHost.empty()) {
             PutModule(
                 t_s("Usage: AddUser <user> <hostmask>[,<hostmasks>...] <mode> "
-                    "<key> "
-                    "[channels]"));
+                    "<key>/<__NOKEY__> [channels]"));
         } else {
             CAutoModeUser* pUser =
                 AddUser(sUser, sMode, sKey, sHost, sLine.Token(5, true));
@@ -352,16 +347,16 @@ class CAutoModeMod : public CModule {
         Table.AddColumn(t_s("Key"));
         Table.AddColumn(t_s("Channels"));
 
-        for (const auto& it : m_msUsers) {
+        for (const auto& [_, pUser] : m_msUsers) {
             VCString vsHostmasks;
-            it.second->GetHostmasks().Split(",", vsHostmasks);
+            pUser->GetHostmasks().Split(",", vsHostmasks);
             for (unsigned int a = 0; a < vsHostmasks.size(); a++) {
                 Table.AddRow();
                 if (a == 0) {
-                    Table.SetCell(t_s("User"), it.second->GetUsername());
-                    Table.SetCell(t_s("Mode"), it.second->GetMode());
-                    Table.SetCell(t_s("Key"), it.second->GetUserKey());
-                    Table.SetCell(t_s("Channels"), it.second->GetChannels());
+                    Table.SetCell(t_s("User"), pUser->GetUsername());
+                    Table.SetCell(t_s("Mode"), pUser->GetMode());
+                    Table.SetCell(t_s("Key"), pUser->GetUserKey());
+                    Table.SetCell(t_s("Channels"), pUser->GetChannels());
                 } else if (a == vsHostmasks.size() - 1) {
                     Table.SetCell(t_s("User"), "`-");
                 } else {
@@ -497,8 +492,14 @@ class CAutoModeMod : public CModule {
         }
 
         if (pUser->GetUserKey().Equals("__NOKEY__")) {
-            PutIRC("MODE " + Channel.GetName() + " +" + pUser->GetMode() + " " +
-                   Nick.GetNick());
+            CString sModes = pUser->GetMode();
+            CString sNickArgs;
+            for (unsigned int i = 0; i < sModes.length(); ++i) {
+                sNickArgs += Nick.GetNick() + " ";
+            }
+            sNickArgs.TrimRight();
+            PutIRC("MODE " + Channel.GetName() + " +" + sModes + " " +
+                   sNickArgs);
         } else {
             // then insert this nick into the queue, the timer does the rest
             CString sNick = Nick.GetNick().AsLower();
@@ -545,8 +546,7 @@ class CAutoModeMod : public CModule {
         bool bMatchedHost = false;
         CAutoModeUser* pUser = nullptr;
 
-        for (const auto& it : m_msUsers) {
-            pUser = it.second;
+        for (const auto& [_, pUser] : m_msUsers) {
 
             // First verify that the person who challenged us matches a user's
             // host
@@ -670,8 +670,16 @@ class CAutoModeMod : public CModule {
                 const CNick* pNick = pChan->FindNick(Nick.GetNick());
 
                 if (pNick && !pNick->HasPerm(CChan::Op)) {
-                    PutIRC("MODE " + pChan->GetName() + " +" + User.GetMode() +
-                           " " + Nick.GetNick());
+                    CString sModes = User.GetMode();
+                    if (sModes.empty()) continue;
+
+                    CString sNickArgs;
+                    for (unsigned int i = 0; i < sModes.size(); ++i)
+                        sNickArgs += Nick.GetNick() + " ";
+
+                    sNickArgs.TrimRight();
+                    PutIRC("MODE " + pChan->GetName() + " +" + sModes + " " +
+                           sNickArgs);
                 }
             }
         }
