@@ -1072,6 +1072,7 @@ bool CZNC::ReadConfig(CConfig& config, CString& sError) {
         CUtils::PrintMessage("Found old config from ZNC " + sSavedVersion +
                              ". Saving a backup of it.");
         BackupConfigOnce("pre-" + CString(VERSION_STR));
+        SetConfigState(ECONFIG_NEED_WRITE);
     } else if (tSavedVersion > tCurrentVersion) {
         CUtils::PrintError("Config was saved from ZNC " + sSavedVersion +
                            ". It may or may not work with current ZNC " +
