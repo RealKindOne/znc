@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -791,14 +791,15 @@ bool CZNC::WriteNewConfig(const CString& sConfigFile) {
         }
 
         CString sHost, sPass, sHint;
-        bool bSSL = false;
+        #ifdef HAVE_LIBSSL
+            bool bSSL = true;
+        #else
+            bool bSSL = false;
+        #endif
         unsigned int uServerPort = 0;
 
         if (sNetwork.Equals("libera")) {
             sHost = "irc.libera.chat";
-#ifdef HAVE_LIBSSL
-            bSSL = true;
-#endif
         } else {
             sHint = "host only";
         }
@@ -945,7 +946,7 @@ bool CZNC::WriteNewConfig(const CString& sConfigFile) {
     CUtils::PrintMessage("");
     CUtils::PrintMessage("Try something like this in your IRC client...", true);
     CUtils::PrintMessage("/server <znc_server_ip> " + sSSL +
-                             CString(uListenPort) + " " + sUser + ":<pass>",
+                             CString(uListenPort) + " " + sUser + "/" + sNetwork + ":<pass>",
                          true);
     CUtils::PrintMessage("");
     CUtils::PrintMessage(

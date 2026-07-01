@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1361,8 +1361,9 @@ void CClient::AcceptSASLLogin(CUser& User) {
 
 SCString CClient::EnumerateSASLMechanisms() const {
     SCString ssMechanisms;
-    // FIXME Currently GetClient()==nullptr due to const
-    GLOBALMODULECALL(OnClientGetSASLMechanisms(ssMechanisms), NOTHING);
+    // FIXME Fix this const_cast
+    _GLOBALMODULECALL(OnClientGetSASLMechanisms(ssMechanisms), nullptr, nullptr,
+                      const_cast<CClient*>(this), NOTHING);
     return ssMechanisms;
 }
 

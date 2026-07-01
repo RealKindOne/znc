@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,61 @@
 #include <gtest/gtest.h>
 #include <znc/FileUtils.h>
 #include <znc/Utils.h>
+
+namespace {
+CString WriteTempFile(const CString& sContent, mode_t iMode) {
+    char sName[] = "./copytest-XXXXXX";
+    int fd = mkstemp(sName);
+    EXPECT_NE(fd, -1);
+    close(fd);
+
+    CFile File(sName);
+    EXPECT_TRUE(File.Open(O_WRONLY | O_TRUNC));
+    File.Write(sContent);
+    File.Close();
+    EXPECT_TRUE(CFile::Chmod(sName, iMode));
+    return sName;
+}
+
+unsigned ModeOf(const CString& sFile) {
+    struct stat st;
+    EXPECT_EQ(CFile::GetInfo(sFile, st), 0);
+    return st.st_mode & 07777;
+}
+}  // namespace
+
+// A 0600 source must never widen to the default 0644 during the copy, so the
+// destination ends up restricted too.
+TEST(FileUtilsTest, CopyKeepsRestrictiveMode) {
+    CString sSrc = WriteTempFile("secret", 0600);
+    CString sDst = sSrc + "-copy";
+
+    EXPECT_TRUE(CFile::Copy(sSrc, sDst));
+    EXPECT_EQ(ModeOf(sDst), 0600u);
+
+    CFile::Delete(sSrc);
+    CFile::Delete(sDst);
+}
+
+// A source the owner can't write to (r-xr-xr-x) must still copy and keep its
+// mode; the copy forces owner write internally and chmods it back afterwards.
+TEST(FileUtilsTest, CopyReadOnlySource) {
+    CString sSrc = WriteTempFile("public", 0555);
+    CString sDst = sSrc + "-copy";
+
+    EXPECT_TRUE(CFile::Copy(sSrc, sDst));
+    EXPECT_EQ(ModeOf(sDst), 0555u);
+
+    CString sContent;
+    CFile Dst(sDst);
+    ASSERT_TRUE(Dst.Open());
+    Dst.ReadFile(sContent);
+    Dst.Close();
+    EXPECT_EQ(sContent, "public");
+
+    CFile::Delete(sSrc);
+    CFile::Delete(sDst);
+}
 
 TEST(IRC32, GetMessageTags) {
     EXPECT_EQ(CUtils::GetMessageTags(""), MCString());
@@ -141,6 +196,34 @@ TEST(UtilsTest, ServerTime) {
     tzset();
 }
 
+TEST(UtilsTest, ConstantTimeEquals) {
+    // Functional correctness for the helper introduced for #2011.
+    // We can't measure timing in a unit test, so we verify the boolean
+    // contract: equal inputs match, any difference (length or content)
+    // does not.
+    EXPECT_TRUE(CUtils::ConstantTimeEquals("", ""));
+    EXPECT_TRUE(CUtils::ConstantTimeEquals("abc", "abc"));
+    EXPECT_TRUE(CUtils::ConstantTimeEquals(CString("\x00\x01\x02", 3),
+                                            CString("\x00\x01\x02", 3)));
+
+    // Differs in last byte (the hardest case for short-circuit compare).
+    EXPECT_FALSE(CUtils::ConstantTimeEquals("abc", "abd"));
+    // Differs in first byte.
+    EXPECT_FALSE(CUtils::ConstantTimeEquals("abc", "Xbc"));
+    // Length mismatch on either side.
+    EXPECT_FALSE(CUtils::ConstantTimeEquals("abc", "abcd"));
+    EXPECT_FALSE(CUtils::ConstantTimeEquals("abcd", "abc"));
+    EXPECT_FALSE(CUtils::ConstantTimeEquals("", "x"));
+    EXPECT_FALSE(CUtils::ConstantTimeEquals("x", ""));
+    // Case-sensitive (unlike CString::Equals default).
+    EXPECT_FALSE(CUtils::ConstantTimeEquals("abc", "ABC"));
+    // Embedded NUL is compared, not used as a terminator.
+    EXPECT_FALSE(CUtils::ConstantTimeEquals(CString("a\x00""c", 3),
+                                             CString("a\x00""d", 3)));
+    EXPECT_TRUE(CUtils::ConstantTimeEquals(CString("a\x00""c", 3),
+                                            CString("a\x00""c", 3)));
+}
+
 TEST(UtilsTest, ParseServerTime) {
     char* oldTZ = getenv("TZ");
     if (oldTZ) oldTZ = strdup(oldTZ);
@@ -159,6 +242,31 @@ TEST(UtilsTest, ParseServerTime) {
         unsetenv("TZ");
     }
     tzset();
+}
+
+TEST(UtilsTest, ParseServerTimeOutOfRange) {
+    // Years past 5 digits trigger int64 overflow inside cctz' microseconds
+    // conversion (`seconds * 1_000_000`). Reject up front (#2008).
+    timeval tv = CUtils::ParseServerTime("999999-01-01T00:00:00.000Z");
+    EXPECT_EQ(tv.tv_sec, 0);
+    EXPECT_EQ(tv.tv_usec, 0);
+
+    tv = CUtils::ParseServerTime("12345678-01-01T00:00:00.000Z");
+    EXPECT_EQ(tv.tv_sec, 0);
+    EXPECT_EQ(tv.tv_usec, 0);
+
+    // Junk and empty input still return a zeroed timeval.
+    tv = CUtils::ParseServerTime("");
+    EXPECT_EQ(tv.tv_sec, 0);
+    EXPECT_EQ(tv.tv_usec, 0);
+
+    tv = CUtils::ParseServerTime("not-a-date-at-all");
+    EXPECT_EQ(tv.tv_sec, 0);
+    EXPECT_EQ(tv.tv_usec, 0);
+
+    // Canonical input still parses (regression).
+    tv = CUtils::ParseServerTime("2011-10-19T16:40:51.620Z");
+    EXPECT_EQ(CUtils::FormatServerTime(tv), "2011-10-19T16:40:51.620Z");
 }
 
 class TimeTest : public testing::TestWithParam<

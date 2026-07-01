@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -740,6 +740,8 @@ bool CHTTPSock::PrintHeader(off_t uContentLength, const CString& sContentType,
     }
     Write("Content-Type: " + m_sContentType + "\r\n");
 
+    WriteHardeningHeaders(uStatusId);
+
     for (const auto& it : m_msResponseCookies) {
         Write("Set-Cookie: " + it.first.Escape_n(CString::EURL) + "=" +
               it.second.Escape_n(CString::EURL) + "; HttpOnly; path=/;" +
@@ -762,8 +764,48 @@ void CHTTPSock::SetContentType(const CString& sContentType) {
     m_sContentType = sContentType;
 }
 
+bool CHTTPSock::IsValidHeaderField(const CString& s) {
+    return s.find_first_of("\r\n") == CString::npos;
+}
+
 void CHTTPSock::AddHeader(const CString& sName, const CString& sValue) {
+    // Reject CR/LF in either half so we never emit a malformed header or
+    // give a caller (e.g. a future module) a cheap response-splitting
+    // primitive. No in-tree caller reaches this with attacker-controlled
+    // bytes today; this is a defensive guard, not a fix for an existing
+    // exploit.
+    if (!IsValidHeaderField(sName) || !IsValidHeaderField(sValue)) return;
     m_msHeaders[sName] = sValue;
+}
+
+void CHTTPSock::OmitHardeningHeader(const CString& sName) {
+    m_ssOmitHardening.insert(sName);
+}
+
+void CHTTPSock::WriteHardeningHeaders(unsigned int uStatusId) {
+    auto writeIfWanted = [&](const CString& sName, const CString& sValue) {
+        if (m_msHeaders.find(sName) != m_msHeaders.end()) return;
+        if (m_ssOmitHardening.find(sName) != m_ssOmitHardening.end()) return;
+        Write(sName + ": " + sValue + "\r\n");
+    };
+
+    // Always-on defaults: callers can override via AddHeader, or skip
+    // entirely via OmitHardeningHeader, before PrintHeader runs.
+    writeIfWanted("X-Frame-Options", "SAMEORIGIN");
+    writeIfWanted("X-Content-Type-Options", "nosniff");
+    writeIfWanted("Referrer-Policy", "no-referrer");
+
+    // Don't cache authenticated/dynamic responses. Skip for 304 and for
+    // static asset MIME types that the ETag/Last-Modified path handles
+    // explicitly via PrintFile.
+    const bool bStaticLike =
+        uStatusId == 304 || m_sContentType.StartsWith("image/") ||
+        m_sContentType.StartsWith("font/") ||
+        m_sContentType.StartsWith("text/css") ||
+        m_sContentType.StartsWith("application/javascript");
+    if (!bStaticLike) {
+        writeIfWanted("Cache-Control", "no-store");
+    }
 }
 
 bool CHTTPSock::Redirect(const CString& sURL) {

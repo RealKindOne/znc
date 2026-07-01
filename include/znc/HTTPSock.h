@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +52,15 @@ class CHTTPSock : public CSocket {
                      unsigned int uStatusId = 200,
                      const CString& sStatusMsg = "OK");
     void AddHeader(const CString& sName, const CString& sValue);
+    /** Returns false if `s` contains CR or LF. Used by AddHeader to reject
+     * inputs that could split the response into a separate header or body
+     * (RFC 7230 disallows obs-fold; treat any bare CR/LF as invalid). */
+    static bool IsValidHeaderField(const CString& s);
+    /** Suppress one of the default security/cache hardening headers for
+     * the next response. Use this when the caller does not want a value
+     * sent at all (a different value can instead be supplied via
+     * AddHeader). Must be called before PrintHeader. */
+    void OmitHardeningHeader(const CString& sName);
     void SetContentType(const CString& sContentType);
 
     bool PrintNotFound();
@@ -117,6 +126,11 @@ class CHTTPSock : public CSocket {
     void WriteFileUncompressed(CFile& File);
     void WriteFileGzipped(CFile& File);
 
+    /** Write the security/cache hardening header lines for the current
+     * response. Skips any name that the caller has already populated via
+     * AddHeader, or has explicitly omitted via OmitHardeningHeader. */
+    void WriteHardeningHeaders(unsigned int uStatusId);
+
   protected:
     void PrintPage(const CString& sPage);
     void Init();
@@ -138,6 +152,7 @@ class CHTTPSock : public CSocket {
     std::map<CString, VCString> m_msvsPOSTParams;
     std::map<CString, VCString> m_msvsGETParams;
     MCString m_msHeaders;
+    SCString m_ssOmitHardening;
     bool m_bHTTP10Client;
     CString m_sIfNoneMatch;
     bool m_bAcceptGzip;

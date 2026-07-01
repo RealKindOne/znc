@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,8 +46,10 @@ void WriteConfig(QString path) {
     p.ReadUntil("Set up a network?");       p.Write();
     p.ReadUntil("Name [libera]");           p.Write("test");
     p.ReadUntil("Server host (host only)"); p.Write("unix:" + path.toUtf8() + "/inttest.ircd");
+#if HAVE_LIBSSL
     p.ReadUntil("Server uses SSL?");        p.Write();
-    p.ReadUntil("6667");                    p.Write();
+#endif
+    p.ReadUntil("Server port");             p.Write();
     p.ReadUntil("password");                p.Write();
     p.ReadUntil("channels");                p.Write();
     p.ReadUntil("Launch ZNC now?");         p.Write("no");

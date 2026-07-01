@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,6 +62,11 @@ class CUtils {
     static CString SaltedMD5Hash(const CString& sPass, const CString& sSalt);
     static CString SaltedSHA256Hash(const CString& sPass, const CString& sSalt);
     static CString SaltedHash(const CString& sPass, const CString& sSalt);
+    /** Byte-wise compare in time proportional to the shorter of the two
+     * lengths, without short-circuiting on the first differing byte. Used
+     * for password / hash comparisons so a remote attacker can't recover
+     * the stored secret one byte at a time via response timing. */
+    static bool ConstantTimeEquals(const CString& a, const CString& b);
     static CString GetPass(const CString& sPrompt);
     static bool GetInput(const CString& sPrompt, CString& sRet,
                          const CString& sDefault = "",

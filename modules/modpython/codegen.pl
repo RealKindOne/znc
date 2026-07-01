@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+# Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ open my $out, ">", $ARGV[1] or die;
 
 print $out <<'EOF';
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,8 @@ print $out <<'EOF';
  * Don't change it manually.                                               *
  ***************************************************************************/
 
+#include "swig_version.h"
+
 namespace {
 	inline swig_type_info* ZNC_SWIG_pchar_descriptor(void) {
 		static int init = 0;
@@ -60,11 +62,8 @@ namespace {
 		return info;
 	}
 
-// SWIG 4.2.0 replaced SWIG_Python_str_AsChar with SWIG_PyUnicode_AsUTF8AndSize.
-// SWIG doesn't provide any good way to detect SWIG version (other than parsing
-// `swig -version`), but it also introduced SWIG_NULLPTR in 4.2.0.
-// So let's abuse that define to do different code for new SWIG.
-#ifdef SWIG_NULLPTR
+// SWIG_VERSION is defined as 0x040200 for 4.2.0.
+#if defined(SWIG_VERSION) && SWIG_VERSION >= 0x040200
 	// This is copied/adapted from SWIG 4.2.0 from pystrings.swg
 	inline int ZNC_SWIG_AsCharPtrAndSize(PyObject *obj, char** cptr, size_t* psize, int *alloc) {
 #if PY_VERSION_HEX>=0x03000000

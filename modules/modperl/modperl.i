@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,7 +82,9 @@ namespace std {
                 return i != self->end();
             }
             SV* keys_() {
-                AV* av = newAV_alloc_x(self->size());
+                // TODO: switch to newAV_alloc_x, requires perl 5.35.1
+                AV *av = newAV();
+                av_extend(av, self->size());
                 // assume SCString
                 int i = 0;
                 for (const auto& a : *self) {

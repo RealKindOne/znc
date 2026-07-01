@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -626,6 +626,14 @@ unsigned int CString::Replace(const CString& sReplace, const CString& sWith,
 unsigned int CString::Replace(CString& sStr, const CString& sReplace,
                               const CString& sWith, const CString& sLeft,
                               const CString& sRight, bool bRemoveDelims) {
+    // An empty needle would make strncmp(_, _, 0) match at every position
+    // and `p += uReplaceWidth - 1` underflow to SIZE_MAX, producing an
+    // infinite loop that appends sWith until OOM. Guard at the entry so
+    // the invariant "the loop always advances" holds.
+    if (sReplace.empty()) {
+        return 0;
+    }
+
     unsigned int uRet = 0;
     CString sCopy = sStr;
     sStr.clear();
@@ -851,7 +859,10 @@ CString::size_type CString::Split(const CString& sDelim, VCString& vsRet,
     size_type uRightLen = sRight.length();
     const char* p = c_str();
 
-    if (!bAllowEmpty) {
+    // An empty delimiter with bAllowEmpty=false would spin forever in the
+    // prefix-skip / post-token loops below because `strncasecmp(_, _, 0)`
+    // returns 0 and `p += 0` never advances.
+    if (!bAllowEmpty && uDelimLen) {
         while (strncasecmp(p, sDelim.c_str(), uDelimLen) == 0) {
             p += uDelimLen;
         }
@@ -890,7 +901,8 @@ CString::size_type CString::Split(const CString& sDelim, VCString& vsRet,
             sTmp.clear();
             p += uDelimLen;
 
-            if (!bAllowEmpty) {
+            // Same zero-width guard as at the top of the function.
+            if (!bAllowEmpty && uDelimLen) {
                 while (strncasecmp(p, sDelim.c_str(), uDelimLen) == 0) {
                     p += uDelimLen;
                 }
@@ -1087,21 +1099,25 @@ unsigned long CString::Base64Decode(CString& sRet) const {
     sTmp.Replace("\n", "");
 
     const char* in = sTmp.c_str();
-    char c, c1, *p;
+    // Keep c and c1 unsigned so left-shifts are well-defined even when the
+    // input contains bytes outside the base64 alphabet (base64_table maps
+    // those to the sentinel 0xff, which used to become signed -1).
+    unsigned char c, c1;
+    char* p;
     unsigned long i;
     unsigned long uLen = sTmp.size();
     char* out = new char[uLen + 1]{};
 
     for (i = 0, p = out; i < uLen; i++) {
-        c = (char)base64_table[(unsigned char)in[i++]];
-        c1 = (char)base64_table[(unsigned char)in[i++]];
+        c = base64_table[(unsigned char)in[i++]];
+        c1 = base64_table[(unsigned char)in[i++]];
         *p++ = char((c << 2) | ((c1 >> 4) & 0x3));
 
         if (i < uLen) {
             if (in[i] == '=') {
                 break;
             }
-            c = (char)base64_table[(unsigned char)in[i]];
+            c = base64_table[(unsigned char)in[i]];
             *p++ = char(((c1 << 4) & 0xf0) | ((c >> 2) & 0xf));
         }
 
@@ -1110,7 +1126,7 @@ unsigned long CString::Base64Decode(CString& sRet) const {
                 break;
             }
             *p++ = char(((c << 6) & 0xc0) |
-                        (char)base64_table[(unsigned char)in[i]]);
+                        base64_table[(unsigned char)in[i]]);
         }
     }
 

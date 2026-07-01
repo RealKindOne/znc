@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,6 +70,40 @@ TEST(MessageTest, GetParams) {
     EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParams(0, 10), "p1 :p2 p3");
     EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParams(1, 10), ":p2 p3");
     EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParams(-1, 10), "");
+}
+
+TEST(MessageTest, GetParamsColon) {
+    EXPECT_EQ(CMessage("CMD").GetParamsColon(0), "");
+    EXPECT_EQ(CMessage("CMD").GetParamsColon(1), "");
+    EXPECT_EQ(CMessage("CMD").GetParamsColon(-1), "");
+
+    EXPECT_EQ(CMessage("CMD").GetParamsColon(0, 0), "");
+    EXPECT_EQ(CMessage("CMD").GetParamsColon(1, 0), "");
+    EXPECT_EQ(CMessage("CMD").GetParamsColon(-1, 0), "");
+
+    EXPECT_EQ(CMessage("CMD").GetParamsColon(0, 1), "");
+    EXPECT_EQ(CMessage("CMD").GetParamsColon(1, 1), "");
+    EXPECT_EQ(CMessage("CMD").GetParamsColon(-1, 1), "");
+
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(0), "p1 :p2 p3");
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(1), ":p2 p3");
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(-1), "");
+
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(0, 0), "");
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(1, 0), "");
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(-1, 0), "");
+
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(0, 1), "p1");
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(1, 1), ":p2 p3");
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(-1, 1), "");
+
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(0, 10), "p1 :p2 p3");
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(1, 10), ":p2 p3");
+    EXPECT_EQ(CMessage("CMD p1 :p2 p3").GetParamsColon(-1, 10), "");
+
+    // uIdx past the end must return "" without undefined behaviour (#1994)
+    EXPECT_EQ(CMessage("MODE #chan +b").GetParamsColon(2, 1), "");
+    EXPECT_EQ(CMessage("MODE #chan +b").GetParamsColon(3, 1), "");
 }
 
 TEST(MessageTest, GetParamsSplit) {

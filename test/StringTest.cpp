@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <znc/ZNCString.h>
+
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 
 class EscapeTest : public ::testing::Test {
   protected:
@@ -128,6 +132,18 @@ TEST(StringTest, Replace) {
     EXPECT_EQ(CString("(a()a)").Replace_n("a", "b"), "(b()b)");
     EXPECT_EQ(CString("(a()a)").Replace_n("a", "b", "(", ")"), "(a()b)");
     EXPECT_EQ(CString("(a()a)").Replace_n("a", "b", "(", ")", true), "a(b)");
+
+    // An empty needle must return the input unchanged with a 0 count
+    // instead of looping forever appending sWith (#2009).
+    CString sStr = "abc";
+    EXPECT_EQ(CString::Replace(sStr, "", "X"), 0u);
+    EXPECT_EQ(sStr, "abc");
+
+    sStr = "";
+    EXPECT_EQ(CString::Replace(sStr, "", "X"), 0u);
+    EXPECT_EQ(sStr, "");
+
+    EXPECT_EQ(CString("abc").Replace_n("", "X"), "abc");
 }
 
 TEST(StringTest, Misc) {
@@ -172,11 +188,53 @@ TEST(StringTest, Split) {
 
     CS("a=x&c=d&a=b").URLSplit(mresult);
     EXPECT_EQ(mexpected, mresult) << "URLSplit";
+
+    // Empty delimiter must not spin in the prefix-skip loop (#2009).
+    // With nothing to split on, the whole input is returned as a single
+    // element (or zero elements if the input itself is empty).
+    VCString vempty;
+    EXPECT_EQ(CS("abc").Split("", vempty, false), 1u);
+    EXPECT_THAT(vempty, ElementsAre("abc"));
+    EXPECT_EQ(CS("abc").Split("", vempty, true), 1u);
+    EXPECT_THAT(vempty, ElementsAre("abc"));
+    EXPECT_EQ(CS("").Split("", vempty, false), 0u);
+    EXPECT_THAT(vempty, IsEmpty());
 }
 
 TEST(StringTest, NamedFormat) {
     MCString m = {{"a", "b"}};
     EXPECT_EQ(CString::NamedFormat(CS("\\{x{a}y{a}"), m), "{xbyb");
+}
+
+TEST(StringTest, Base64) {
+    // Round-trip regression: encode/decode of normal text still works.
+    CString sIn = "Hello, World!";
+    CString sEncoded = sIn.Base64Encode_n();
+    EXPECT_EQ(sEncoded, "SGVsbG8sIFdvcmxkIQ==");
+    EXPECT_EQ(sEncoded.Base64Decode_n(), sIn);
+
+    // All-zero bytes round-trip cleanly.
+    CString sBin = CString("\0\0\0", 3);
+    EXPECT_EQ(sBin.Base64Encode_n().Base64Decode_n(), sBin);
+
+    // Inputs containing bytes outside the base64 alphabet must not invoke
+    // undefined behaviour. base64_table maps such bytes to the sentinel
+    // 0xff; the old code cast that to signed char (-1) and then evaluated
+    // (c << 2) and (c << 6), both UB on signed shifts. Run under UBSan to
+    // catch a regression of #2013.
+    CString sInvalid;
+    sInvalid += '\xff';
+    sInvalid += '\xff';
+    sInvalid += '\xff';
+    sInvalid += '\xff';
+    CString sOut;
+    sInvalid.Base64Decode(sOut);  // must not crash or trigger UB
+
+    // Mixed-validity input (a single non-alphabet byte inside a quad).
+    // Split the literal so GCC does not parse \xff and the following A as
+    // a single \xffA hex escape (out of range for char).
+    CString sMixed = CString("AA\xff" "A", 4);
+    sMixed.Base64Decode(sOut);  // must not crash or trigger UB
 }
 
 TEST(StringTest, Hash) {

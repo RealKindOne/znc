@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+# Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ target_link_libraries(znclib PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
 if(ZLIB_FOUND)
 	target_link_libraries(znclib PRIVATE ZLIB::ZLIB)
 endif()
-if(Boost_FOUND)
+if(Boost_LOCALE_FOUND)
 	target_link_libraries(znclib PRIVATE Boost::locale)
 endif()
 if(ZNC_HAVE_ARGON)

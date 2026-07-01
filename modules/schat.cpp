@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  * Author: imaginos <imaginos@imaginos.net>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,13 +24,6 @@
 #include <znc/FileUtils.h>
 #include <znc/User.h>
 #include <znc/IRCNetwork.h>
-
-#ifndef HAVE_SSL_SESSION_get0_cipher
-/* SSL_SESSION was made opaque in OpenSSL 1.1.0, cipher accessor was added 2
-weeks before the public release.
-See openssl/openssl@e92813234318635639dba0168c7ef5568757449b. */
-# define SSL_SESSION_get0_cipher(pSession) ((pSession)->cipher)
-#endif
 
 using std::pair;
 using std::stringstream;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ class CFile {
     bool Open(const CString& sFileName, int iFlags = O_RDONLY,
               mode_t iMode = 0644);
     bool Open(int iFlags = O_RDONLY, mode_t iMode = 0644);
-    ssize_t Read(char* pszBuffer, int iBytes);
+    [[nodiscard]] ssize_t Read(char* pszBuffer, int iBytes);
     bool ReadLine(CString& sData, const CString& sDelimiter = "\n");
     bool ReadFile(CString& sData, size_t iMaxSize = 512 * 1024);
     ssize_t Write(const char* pszBuffer, size_t iBytes);

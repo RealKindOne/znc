@@ -8,24 +8,39 @@ jobs:
     name: GCC
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - run: source .github/ubuntu_deps.sh
       - run: source .github/build.sh
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         with:
           name: ${{ github.job }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: codecov debug results ${{ github.job }}
           path: "/tmp/codecov.*.gz"
+
+  nossl:
+    name: NoSSL
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - run: source .github/ubuntu_deps.sh
+      - run: |
+          export CFGFLAGS="--disable-openssl"
+          source .github/build.sh
+      - uses: codecov/codecov-action@v6
+        with:
+          name: ${{ github.job }}
 
   tarball:
     name: Tarball
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - run: source .github/ubuntu_deps.sh
@@ -36,12 +51,12 @@ jobs:
           cd znc-git-$date
           export CFGFLAGS="--with-gtest=$GITHUB_WORKSPACE/third_party/googletest/googletest --with-gmock=$GITHUB_WORKSPACE/third_party/googletest/googlemock --disable-swig"
           source $GITHUB_WORKSPACE/.github/build.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: znc-tarball
           path: /tmp/znc-git*.tar.gz
           if-no-files-found: error
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         with:
           name: ${{ github.job }}
 
@@ -53,15 +68,15 @@ jobs:
       CXX: clang++
       CC: clang
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - run: source .github/ubuntu_deps.sh
       - run: source .github/build.sh
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         with:
           name: ${{ github.job }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: codecov debug results ${{ github.job }}
           path: "/tmp/codecov.*.gz"
@@ -76,12 +91,12 @@ jobs:
       #CXXFLAGS: "-fsanitize=address -O1 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fPIE"
       #LDFLAGS: "-fsanitize=address -pie"
     #steps:
-      #- uses: actions/checkout@v4
+      #- uses: actions/checkout@v6
         #with:
           #submodules: true
       #- run: source .github/ubuntu_deps.sh
       #- run: source .github/build.sh
-      #- uses: codecov/codecov-action@v5
+      #- uses: codecov/codecov-action@v6
 
   #clang_tsan:
     #name: Clang TSAN
@@ -92,12 +107,12 @@ jobs:
       #CXXFLAGS: "-fsanitize=thread -O1 -fPIE"
       #LDFLAGS: "-fsanitize=thread"
     #steps:
-      #- uses: actions/checkout@v4
+      #- uses: actions/checkout@v6
         #with:
           #submodules: true
       #- run: source .github/ubuntu_deps.sh
       #- run: source .github/build.sh
-      #- uses: codecov/codecov-action@v5
+      #- uses: codecov/codecov-action@v6
 
       # TODO: enable
       #CXXFLAGS: "-fsanitize=memory -O1 -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize-memory-track-origins"
@@ -114,7 +129,7 @@ jobs:
       CXX: clang++
       CC: clang
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - run: |
@@ -124,7 +139,7 @@ jobs:
         env:
           # https://github.com/znc/znc/issues/1937
           GTEST_FILTER: "-*Modpython*:LanguagesTests/AllLanguages.ServerDependentCapInModule/1"
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
 
   docker:
     name: Docker push
@@ -134,7 +149,7 @@ jobs:
       - tarball
       - clang
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - id: tagger
@@ -144,7 +159,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/heads/master ]]; then
             echo "::set-output name=latest::type=raw,latest"
           fi
-      - uses: docker/metadata-action@v5
+      - uses: docker/metadata-action@v6
         id: meta
         with:
           images: zncbouncer/znc-git
@@ -154,12 +169,12 @@ jobs:
             ${{steps.tagger.outputs.latest}}
       - run: echo "${GITHUB_REF#refs/heads/}-${{steps.tagger.outputs.describe}}" > .nightly
       - run: cat .nightly
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         if: ${{ github.repository == 'znc/znc' && github.event_name == 'push' }}
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           push: ${{ github.repository == 'znc/znc' && github.event_name == 'push' }}
@@ -173,7 +188,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - run: sudo apt-get update

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ void CMessage::SetCommand(const CString& sCommand) {
 }
 
 CString CMessage::GetParamsColon(unsigned int uIdx, unsigned int uLen) const {
-    if (m_vsParams.empty() || uLen == 0) {
+    if (m_vsParams.empty() || uLen == 0 || uIdx >= m_vsParams.size()) {
         return "";
     }
     if (uLen > m_vsParams.size() - uIdx - 1) {

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+# Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ add_executable(unittest_bin EXCLUDE_FROM_ALL
 	"ThreadTest.cpp" "NickTest.cpp" "ClientTest.cpp" "NetworkTest.cpp"
 	"MessageTest.cpp" "ModulesTest.cpp" "IRCSockTest.cpp" "QueryTest.cpp"
 	"StringTest.cpp" "ConfigTest.cpp" "BufferTest.cpp" "UtilsTest.cpp"
-	"UserTest.cpp" "DebugTest.cpp")
+	"UserTest.cpp" "DebugTest.cpp" "HTTPSockTest.cpp")
 target_link_libraries(unittest_bin PRIVATE znclib)
 target_include_directories(unittest_bin PRIVATE
 	"${GTEST_ROOT}" "${GTEST_ROOT}/include"

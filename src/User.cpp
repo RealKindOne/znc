@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1063,11 +1063,13 @@ bool CUser::CheckPass(const CString& sPass) {
     bool bUpgrade = false;
     switch (m_eHashType) {
         case HASH_MD5:
-            bResult = m_sPass.Equals(CUtils::SaltedMD5Hash(sPass, m_sPassSalt));
+            bResult = CUtils::ConstantTimeEquals(
+                m_sPass, CUtils::SaltedMD5Hash(sPass, m_sPassSalt));
             bUpgrade = true;
             break;
         case HASH_SHA256:
-            bResult = m_sPass.Equals(CUtils::SaltedSHA256Hash(sPass, m_sPassSalt));
+            bResult = CUtils::ConstantTimeEquals(
+                m_sPass, CUtils::SaltedSHA256Hash(sPass, m_sPassSalt));
 #if ZNC_HAVE_ARGON
             bUpgrade = true;
 #endif
@@ -1082,7 +1084,7 @@ bool CUser::CheckPass(const CString& sPass) {
         case HASH_NONE:
             // Don't upgrade hash, since the only valid use case for plain are
             // manual tests, where it's simpler this way
-            return (sPass == m_sPass);
+            return CUtils::ConstantTimeEquals(sPass, m_sPass);
     }
 
     if (bResult && bUpgrade) {

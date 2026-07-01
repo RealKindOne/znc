@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2025 ZNC, see the NOTICE file for details.
+ * Copyright (C) 2004-2026 ZNC, see the NOTICE file for details.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -111,10 +111,7 @@ class CIdentFileModule : public CModule {
             return false;
         }
 
-        char buf[1024];
-        memset((char*)buf, 0, 1024);
-        m_pISpoofLockFile->Read(buf, 1024);
-        m_sOrigISpoof = buf;
+        m_pISpoofLockFile->ReadFile(m_sOrigISpoof);
 
         if (!m_pISpoofLockFile->Seek(0) || !m_pISpoofLockFile->Truncate()) {
             delete m_pISpoofLockFile;
