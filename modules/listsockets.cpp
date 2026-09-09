@@ -153,10 +153,22 @@ class CListSockets : public CModule {
 
     CString GetCreatedTime(const Csock* pSocket) {
         unsigned long long iStartTime = pSocket->GetStartTime();
-        timeval tv;
-        tv.tv_sec = iStartTime / 1000;
-        tv.tv_usec = iStartTime % 1000 * 1000;
-        return CUtils::FormatTime(tv, "%Y-%m-%d %H:%M:%S.%f",
+        unsigned long long iNowSteady = CUtils::GetMillTime();
+
+        timeval tvNow = CUtils::GetTime();
+
+        long long iElapsedMs = (long long)iNowSteady - (long long)iStartTime;
+        if (iElapsedMs < 0) iElapsedMs = 0;
+
+        long long iCreatedMs =
+           (long long)tvNow.tv_sec * 1000 + tvNow.tv_usec / 1000 - iElapsedMs;
+        if (iCreatedMs < 0) iCreatedMs = 0;
+
+        timeval tvCreated;
+        tvCreated.tv_sec = iCreatedMs / 1000;
+        tvCreated.tv_usec = (iCreatedMs % 1000) * 1000;
+
+        return CUtils::FormatTime(tvCreated, "%Y-%m-%d %H:%M:%S",
                                   GetUser()->GetTimezone());
     }
 
